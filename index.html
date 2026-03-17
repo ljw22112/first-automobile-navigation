@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Real AI Navigation</title>
+
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=KAKAO_APP_KEY"></script>
+
+<style>
+body { margin:0; font-family:Arial; background:#0b0f14; color:white; }
+
+#top-bar {
+  padding:10px;
+  background:#111;
+  display:flex;
+  gap:10px;
+}
+
+input, button {
+  padding:8px;
+  border:none;
+  border-radius:6px;
+}
+
+button {
+  background:#2e7cf6;
+  color:white;
+  cursor:pointer;
+}
+
+#map {
+  width:100%;
+  height:80vh;
+}
+
+#info {
+  display:flex;
+  justify-content:space-around;
+  padding:10px;
+  background:#111;
+}
+</style>
+</head>
+
+<body>
+
+<div id="top-bar">
+  <input id="start-lat" placeholder="출발 위도" value="37.5665">
+  <input id="start-lng" placeholder="출발 경도" value="126.9780">
+  <input id="end-lat" placeholder="도착 위도" value="37.5796">
+  <input id="end-lng" placeholder="도착 경도" value="126.9770">
+  <button onclick="startNav()">경로 탐색</button>
+</div>
+
+<div id="map"></div>
+
+<div id="info">
+  <div>속도: <span id="speed">0</span></div>
+  <div>ETA: <span id="eta">-</span></div>
+</div>
+
+<script>
+// ───────── 지도 생성 ─────────
+const map = new kakao.maps.Map(document.getElementById('map'), {
+  center: new kakao.maps.LatLng(37.5665,126.9780),
+  level:5
+});
+
+let polyline = null;
+let marker = null;
+let routePath = [];
+let progress = 0;
+
+// ───────── TMAP 경로 요청 ─────────
+async function getRoute(start, end) {
+  const res = await fetch("https://apis.openapi.sk.com/tmap/routes?version=1&format=json", {
+    method:"POST",
+    headers:{
+      "appKey":"TMAP_APP_KEY",
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify({
+      startX:start.lng,
+      startY:start.lat,
+      endX:end.lng,
+      endY:end.lat,
+      reqCoordType:"WGS84GEO",
+      resCoordType:"WGS84GEO"
+    })
+  });
+
+  return await res.json();
+}
+
+// ───────── 경로 그리기 ─────────
+function drawRoute(data){
+  const coords = data.features
+    .filter(f=>f.geometry.type==="LineString")
+    .flatMap(f=>f.geometry.coordinates);
+
+  routePath = coords.map(c =>
+    new kakao.maps.LatLng(c[1],c[0])
+  );
+
+  if(polyline) polyline.setMap(null);
+
+  polyline = new kakao.maps.Polyline({
+    path:routePath,
+    strokeWeight:5,
+    strokeColor:"#2e7cf6",
+    strokeOpacity:0.9
+  });
+
+  polyline.setMap(map);
+
+  map.setCenter(routePath[0]);
+
+  // 차량 생성
+  if(marker) marker.setMap(null);
+  marker = new kakao.maps.Marker({
+    position:routePath[0]
+  });
+  marker.setMap(map);
+}
+
+// ───────── 차량 이동 ─────────
+function animate(){
+  if(progress >= routePath.length) return;
+
+  marker.setPosition(routePath[progress]);
+
+  // 속도
+  const speed = Math.floor(40 + Math.random()*30);
+  document.getElementById('speed').textContent = speed + " km/h";
+
+  // ETA
+  const remain = routePath.length - progress;
+  document.getElementById('eta').textContent = Math.floor(remain/10) + "분";
+
+  progress++;
+
+  setTimeout(animate, 100);
+}
+
+// ───────── 시작 ─────────
+async function startNav(){
+  progress = 0;
+
+  const start = {
+    lat:parseFloat(document.getElementById('start-lat').value),
+    lng:parseFloat(document.getElementById('start-lng').value)
+  };
+
+  const end = {
+    lat:parseFloat(document.getElementById('end-lat').value),
+    lng:parseFloat(document.getElementById('end-lng').value)
+  };
+
+  const data = await getRoute(start, end);
+
+  drawRoute(data);
+  animate();
+}
+</script>
+
+</body>
+</html>
