@@ -2,166 +2,1448 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Real AI Navigation</title>
-
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=KAKAO_APP_KEY"></script>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoM-NAV BY JW · 자율주행 내비게이션</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-body { margin:0; font-family:Arial; background:#0b0f14; color:white; }
+  :root {
+    --bg-base:      #0b0d12;
+    --bg-panel:     #10131a;
+    --bg-card:      #161a24;
+    --bg-hover:     #1c2130;
+    --border:       rgba(255,255,255,0.07);
+    --border-mid:   rgba(255,255,255,0.12);
+    --border-hi:    rgba(255,255,255,0.22);
+    --text-primary: #e8eaf0;
+    --text-secondary: #7a8299;
+    --text-dim:     #4a5068;
+    --blue:         #2e7cf6;
+    --blue-dim:     rgba(46,124,246,0.15);
+    --blue-glow:    rgba(46,124,246,0.35);
+    --green:        #22c97a;
+    --green-dim:    rgba(34,201,122,0.12);
+    --amber:        #f5a623;
+    --amber-dim:    rgba(245,166,35,0.12);
+    --red:          #f04f4f;
+    --red-dim:      rgba(240,79,79,0.12);
+    --purple:       #8b6cf7;
+    --purple-dim:   rgba(139,108,247,0.15);
+    --font-ui:      'Barlow', sans-serif;
+    --font-display: 'Barlow Condensed', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+  }
 
-#top-bar {
-  padding:10px;
-  background:#111;
-  display:flex;
-  gap:10px;
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-input, button {
-  padding:8px;
-  border:none;
-  border-radius:6px;
-}
+  html, body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    height: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-button {
-  background:#2e7cf6;
-  color:white;
-  cursor:pointer;
-}
+  /* ── HEADER ─────────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .header-time { color: var(--text-primary); }
 
-#map {
-  width:100%;
-  height:80vh;
-}
+  /* ── LAYOUT ──────────────────────────────────────── */
+  .app-body {
+    display: grid;
+    grid-template-columns: 320px 1fr 280px;
+    gap: 0;
+    height: calc(100vh - 52px);
+    overflow: hidden;
+  }
+  .sidebar-left, .sidebar-right {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .sidebar-right { border-right: none; border-left: 1px solid var(--border); }
+  .main-view { position: relative; overflow: hidden; background: var(--bg-base); }
 
-#info {
-  display:flex;
-  justify-content:space-around;
-  padding:10px;
-  background:#111;
-}
+  /* ── SCROLLBAR ───────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+  /* ── SECTION ─────────────────────────────────────── */
+  .section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── INPUT ───────────────────────────────────────── */
+  .field { margin-bottom: 10px; }
+  .field-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 5px; }
+  .input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    transition: border-color 0.2s;
+  }
+  .input-wrap:focus-within { border-color: var(--blue); }
+  .input-wrap input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    width: 100%;
+  }
+  .input-wrap input::placeholder { color: var(--text-dim); }
+  .input-icon { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .input-icon.gps { background: var(--blue); animation: pulse-gps 1.5s ease-in-out infinite; }
+  .input-icon.dest { background: var(--red); }
+  @keyframes pulse-gps { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.5)} }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .btn:hover { background: var(--bg-hover); border-color: var(--border-hi); }
+  .btn.primary {
+    background: var(--blue-dim);
+    border-color: var(--blue);
+    color: #7fb8ff;
+  }
+  .btn.primary:hover { background: rgba(46,124,246,0.25); }
+  .btn.danger {
+    background: var(--red-dim);
+    border-color: var(--red);
+    color: #ff9494;
+  }
+
+  /* ── STATUS CHIP ─────────────────────────────────── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--font-mono);
+  }
+  .chip-blue   { background: var(--blue-dim);   color: #7fb8ff; border: 1px solid rgba(46,124,246,0.3); }
+  .chip-green  { background: var(--green-dim);  color: #68f0ac; border: 1px solid rgba(34,201,122,0.3); }
+  .chip-amber  { background: var(--amber-dim);  color: #ffc96a; border: 1px solid rgba(245,166,35,0.3); }
+  .chip-red    { background: var(--red-dim);    color: #ff9494; border: 1px solid rgba(240,79,79,0.3); }
+  .chip-purple { background: var(--purple-dim); color: #c4b0ff; border: 1px solid rgba(139,108,247,0.3); }
+  .chip-dim    { background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid var(--border); }
+  .chip-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .chip-dot.anim { animation: blink 1.2s ease-in-out infinite; }
+
+  /* ── STAT ROWS ───────────────────────────────────── */
+  .stat-grid { display: flex; flex-direction: column; gap: 2px; }
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-key { font-size: 12px; color: var(--text-secondary); }
+  .stat-val { font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); font-weight: 500; }
+  .stat-val.blue   { color: #7fb8ff; }
+  .stat-val.green  { color: #68f0ac; }
+  .stat-val.amber  { color: #ffc96a; }
+  .stat-val.red    { color: #ff9494; }
+  .stat-val.purple { color: #c4b0ff; }
+  .stat-val.dim    { color: var(--text-secondary); }
+
+  /* ── SIGNAL BARS ─────────────────────────────────── */
+  .signal-wrap { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
+  .signal-bar { width: 4px; border-radius: 1px; transition: background 0.4s; }
+
+  /* ── GPS / LOCATION SOURCE ───────────────────────── */
+  #gps-source-row { transition: all 0.4s; }
+
+  /* ── STEP TRACKER ────────────────────────────────── */
+  .step-track { display: flex; align-items: center; gap: 0; margin-bottom: 12px; }
+  .step-node {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; font-family: var(--font-mono);
+    border: 1px solid var(--border-mid);
+    background: var(--bg-card);
+    color: var(--text-dim);
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .step-node.done    { background: var(--green-dim);   border-color: var(--green);  color: #68f0ac; }
+  .step-node.active  { background: var(--blue-dim);    border-color: var(--blue);   color: #7fb8ff; }
+  .step-node.tunnel  { background: var(--purple-dim);  border-color: var(--purple); color: #c4b0ff; animation: tunnel-pulse 1s ease-in-out infinite; }
+  @keyframes tunnel-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(139,108,247,0.4)} 50%{box-shadow:0 0 0 6px rgba(139,108,247,0)} }
+  .step-line { flex: 1; height: 1px; background: var(--border); transition: background 0.3s; }
+  .step-line.done { background: var(--green); }
+  .step-desc { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; min-height: 16px; }
+
+  /* ── V2V FEED ─────────────────────────────────────── */
+  .v2v-item {
+    padding: 9px 11px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    margin-bottom: 6px;
+    animation: slide-in 0.25s ease;
+  }
+  .v2v-item.tunnel-msg {
+    border-color: rgba(139,108,247,0.4);
+    background: rgba(139,108,247,0.07);
+  }
+  @keyframes slide-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+  .v2v-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+  .v2v-text { font-size: 12px; font-weight: 500; color: var(--text-primary); line-height: 1.4; }
+  .v2v-meta { font-size: 11px; color: var(--text-dim); }
+  .v2v-relay-tag { font-size: 10px; font-family: var(--font-mono); color: var(--purple); margin-right: 4px; }
+  .v2v-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 16px 0; }
+
+  /* ── ROUTE CARDS ─────────────────────────────────── */
+  .route-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .route-card {
+    padding: 11px 13px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    transition: border-color 0.3s;
+  }
+  .route-card.active-route  { border-color: var(--blue); }
+  .route-card.alt-route    { border-color: var(--green); }
+  .route-card.faster { border-color: var(--green); background: rgba(34,201,122,0.05); }
+  .route-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .route-label { font-size: 11px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+  .route-time { font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1; }
+  .route-time.blue   { color: #7fb8ff; }
+  .route-time.green  { color: #68f0ac; }
+  .route-time.red    { color: #ff9494; }
+  .route-unit { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+  .route-via { font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.4; }
+
+  /* ── DECISION BOX ────────────────────────────────── */
+  .decision-box {
+    padding: 11px 13px;
+    border-radius: var(--r-md);
+    font-size: 12px;
+    line-height: 1.6;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .decision-box.reroute  { border-color: rgba(34,201,122,0.4); background: rgba(34,201,122,0.06); color: #68f0ac; }
+  .decision-box.keep     { border-color: rgba(46,124,246,0.4); background: rgba(46,124,246,0.06); color: #7fb8ff; }
+  .decision-box.tunnel   { border-color: rgba(139,108,247,0.4); background: rgba(139,108,247,0.07); color: #c4b0ff; }
+  .decision-box.accident { border-color: rgba(240,79,79,0.4); background: rgba(240,79,79,0.06); color: #ff9494; }
+  .decision-box strong   { font-weight: 600; }
+
+  /* ── MAP ─────────────────────────────────────────── */
+  #map-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .tunnel-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(11,13,18,0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.6s;
+    pointer-events: none;
+  }
+  .tunnel-overlay.show { opacity: 1; }
+  .tunnel-banner {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #c4b0ff;
+    padding: 8px 20px;
+    border: 1px solid rgba(139,108,247,0.5);
+    border-radius: 999px;
+    background: rgba(139,108,247,0.15);
+    animation: tunnel-glow 1.5s ease-in-out infinite alternate;
+  }
+  .tunnel-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(196,176,255,0.6);
+    letter-spacing: 0.06em;
+  }
+  @keyframes tunnel-glow {
+    from { box-shadow: 0 0 12px rgba(139,108,247,0.2); }
+    to   { box-shadow: 0 0 28px rgba(139,108,247,0.5); }
+  }
+
+  /* ── RIGHT PANEL ─────────────────────────────────── */
+  .event-log-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .event-log-item:last-child { border-bottom: none; }
+  .event-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); padding-top: 2px; min-width: 42px; }
+  .event-text { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+  .event-text strong { color: var(--text-primary); font-weight: 500; }
+
+  .big-speed {
+    font-family: var(--font-display);
+    font-size: 56px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+    text-align: center;
+  }
+  .speed-unit { font-size: 14px; color: var(--text-secondary); text-align: center; margin-top: 4px; font-family: var(--font-mono); }
+
+  /* ── SELECT DROPDOWN ────────────────────────────── */
+  .input-wrap select {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    width: 100%;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .input-wrap select option {
+    background: #161a24;
+    color: var(--text-primary);
+  }
+  .select-arrow {
+    flex-shrink: 0;
+    color: var(--text-dim);
+    pointer-events: none;
+    font-size: 10px;
+  }
+
+  /* ── SCROLLABLE CONTENT ──────────────────────────── */
+  .scroll-content { overflow-y: auto; flex: 1; }
+
+  /* ── RESPONSIVE ──────────────────────────────────── */
+  @media (max-width: 1100px) {
+    .app-body { grid-template-columns: 280px 1fr; }
+    .sidebar-right { display: none; }
+  }
+  @media (max-width: 720px) {
+    .app-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: auto; }
+    .main-view { height: 50vh; }
+    .sidebar-left, .sidebar-right { border: none; overflow-y: visible; }
+    .sidebar-right { border-top: 1px solid var(--border); }
+  }
 </style>
 </head>
-
 <body>
 
-<div id="top-bar">
-  <input id="start-lat" placeholder="출발 위도" value="37.5665">
-  <input id="start-lng" placeholder="출발 경도" value="126.9780">
-  <input id="end-lat" placeholder="도착 위도" value="37.5796">
-  <input id="end-lng" placeholder="도착 경도" value="126.9770">
-  <button onclick="startNav()">경로 탐색</button>
-</div>
+<!-- ── HEADER ── -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    AV-NAV
+  </div>
+  <div class="header-meta">
+    <span>자율주행 내비게이션 시스템</span>
+    <span class="header-time" id="clock">--:--:--</span>
+    <span id="header-status-chip" class="chip chip-dim"><span class="chip-dot"></span>대기 중</span>
+  </div>
+</header>
 
-<div id="map"></div>
+<div class="app-body">
 
-<div id="info">
-  <div>속도: <span id="speed">0</span></div>
-  <div>ETA: <span id="eta">-</span></div>
+  <!-- ══ LEFT SIDEBAR ══ -->
+  <aside class="sidebar-left">
+
+    <!-- 목적지 설정 -->
+    <div class="section">
+      <div class="section-label">목적지 설정</div>
+      <div class="field">
+        <div class="field-label">출발지</div>
+        <div class="input-wrap">
+          <span class="input-icon gps" id="gps-icon"></span>
+          <select id="origin-input">
+            <option value="서울시청">서울시청</option>
+            <option value="광화문광장">광화문광장</option>
+            <option value="경복궁">경복궁</option>
+            <option value="종로3가">종로3가</option>
+            <option value="동대문역사문화공원">동대문역사문화공원</option>
+            <option value="명동 롯데백화점">명동 롯데백화점</option>
+            <option value="남산서울타워">남산서울타워</option>
+            <option value="용산역">용산역</option>
+            <option value="이태원 해밀턴호텔">이태원 해밀턴호텔</option>
+            <option value="홍대입구역">홍대입구역</option>
+            <option value="신촌역">신촌역</option>
+            <option value="연세대학교 정문">연세대학교 정문</option>
+            <option value="이화여자대학교">이화여자대학교</option>
+            <option value="합정역">합정역</option>
+            <option value="망원한강공원">망원한강공원</option>
+            <option value="여의도역">여의도역</option>
+            <option value="여의도 한강공원">여의도 한강공원</option>
+            <option value="KBS 방송국">KBS 방송국</option>
+            <option value="영등포역">영등포역</option>
+            <option value="타임스퀘어 영등포">타임스퀘어 영등포</option>
+            <option value="구로디지털단지역">구로디지털단지역</option>
+            <option value="신도림역">신도림역</option>
+            <option value="가산디지털단지역">가산디지털단지역</option>
+            <option value="금천구청역">금천구청역</option>
+            <option value="관악구청">관악구청</option>
+            <option value="서울대학교 정문">서울대학교 정문</option>
+            <option value="낙성대역">낙성대역</option>
+            <option value="사당역">사당역</option>
+            <option value="방배역">방배역</option>
+            <option value="서초구청">서초구청</option>
+            <option value="강남역">강남역</option>
+            <option value="신논현역">신논현역</option>
+            <option value="논현역">논현역</option>
+            <option value="압구정 현대백화점">압구정 현대백화점</option>
+            <option value="청담동 명품거리">청담동 명품거리</option>
+            <option value="삼성역 코엑스">삼성역 코엑스</option>
+            <option value="선릉역">선릉역</option>
+            <option value="역삼역">역삼역</option>
+            <option value="도곡역">도곡역</option>
+            <option value="개포동 래미안">개포동 래미안</option>
+            <option value="수서역">수서역</option>
+            <option value="복정역">복정역</option>
+            <option value="문정역">문정역</option>
+            <option value="가락시장역">가락시장역</option>
+            <option value="잠실역 롯데월드">잠실역 롯데월드</option>
+            <option value="잠실새내역">잠실새내역</option>
+            <option value="석촌역">석촌역</option>
+            <option value="송파구청">송파구청</option>
+            <option value="올림픽공원">올림픽공원</option>
+            <option value="강동구청">강동구청</option>
+            <option value="천호역">천호역</option>
+            <option value="강변역 테크노마트">강변역 테크노마트</option>
+            <option value="구리시청">구리시청</option>
+            <option value="광진구청">광진구청</option>
+            <option value="건국대학교">건국대학교</option>
+            <option value="뚝섬역">뚝섬역</option>
+            <option value="성수역">성수역</option>
+            <option value="왕십리역">왕십리역</option>
+            <option value="한양대학교">한양대학교</option>
+            <option value="마장역">마장역</option>
+            <option value="동묘앞역">동묘앞역</option>
+            <option value="신설동역">신설동역</option>
+            <option value="제기동역">제기동역</option>
+            <option value="청량리역">청량리역</option>
+            <option value="회기역">회기역</option>
+            <option value="경희대학교">경희대학교</option>
+            <option value="외대앞역">외대앞역</option>
+            <option value="망우역">망우역</option>
+            <option value="중랑구청">중랑구청</option>
+            <option value="노원역">노원역</option>
+            <option value="도봉산역">도봉산역</option>
+            <option value="방학역">방학역</option>
+            <option value="쌍문역">쌍문역</option>
+            <option value="창동역">창동역</option>
+            <option value="도봉구청">도봉구청</option>
+            <option value="강북구청">강북구청</option>
+            <option value="수유역">수유역</option>
+            <option value="미아사거리역">미아사거리역</option>
+            <option value="길음역">길음역</option>
+            <option value="성신여대입구역">성신여대입구역</option>
+            <option value="한성대입구역">한성대입구역</option>
+            <option value="혜화역">혜화역</option>
+            <option value="동대문역">동대문역</option>
+            <option value="을지로3가역">을지로3가역</option>
+            <option value="을지로입구역">을지로입구역</option>
+            <option value="시청역">시청역</option>
+            <option value="충정로역">충정로역</option>
+            <option value="아현역">아현역</option>
+            <option value="마포역">마포역</option>
+            <option value="공덕역">공덕역</option>
+            <option value="대흥역">대흥역</option>
+            <option value="상수역">상수역</option>
+            <option value="광흥창역">광흥창역</option>
+            <option value="서강대학교">서강대학교</option>
+            <option value="가좌역">가좌역</option>
+            <option value="수색역">수색역</option>
+            <option value="디지털미디어시티역">디지털미디어시티역</option>
+            <option value="은평구청">은평구청</option>
+            <option value="불광역">불광역</option>
+          </select>
+          <span class="select-arrow">▾</span>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <div class="field-label">목적지</div>
+        <div class="input-wrap">
+          <span class="input-icon dest"></span>
+          <select id="dest-input">
+            <option value="강남구 테헤란로 521">강남구 테헤란로 521</option>
+            <option value="강남역 2번출구">강남역 2번출구</option>
+            <option value="코엑스몰">코엑스몰</option>
+            <option value="잠실 롯데월드타워">잠실 롯데월드타워</option>
+            <option value="서울 올림픽스타디움">서울 올림픽스타디움</option>
+            <option value="인천국제공항 1터미널">인천국제공항 1터미널</option>
+            <option value="인천국제공항 2터미널">인천국제공항 2터미널</option>
+            <option value="김포국제공항">김포국제공항</option>
+            <option value="서울역 KTX">서울역 KTX</option>
+            <option value="수서역 SRT">수서역 SRT</option>
+            <option value="용산역 ITX">용산역 ITX</option>
+            <option value="청량리역 GTX-B">청량리역 GTX-B</option>
+            <option value="동탄역">동탄역</option>
+            <option value="판교역 알파돔">판교역 알파돔</option>
+            <option value="분당 서현역">분당 서현역</option>
+            <option value="수원역">수원역</option>
+            <option value="수원 삼성전자 캠퍼스">수원 삼성전자 캠퍼스</option>
+            <option value="광교 앨리웨이">광교 앨리웨이</option>
+            <option value="성남시청">성남시청</option>
+            <option value="위례 중앙광장">위례 중앙광장</option>
+            <option value="하남 스타필드">하남 스타필드</option>
+            <option value="미사강변도시">미사강변도시</option>
+            <option value="구리 갈매지구">구리 갈매지구</option>
+            <option value="남양주 다산신도시">남양주 다산신도시</option>
+            <option value="의정부역">의정부역</option>
+            <option value="양주 옥정신도시">양주 옥정신도시</option>
+            <option value="파주 운정신도시">파주 운정신도시</option>
+            <option value="일산 킨텍스">일산 킨텍스</option>
+            <option value="고양 스타필드">고양 스타필드</option>
+            <option value="부천 중동신도시">부천 중동신도시</option>
+            <option value="인천 송도국제도시">인천 송도국제도시</option>
+            <option value="인천 청라국제도시">인천 청라국제도시</option>
+            <option value="안산 중앙역">안산 중앙역</option>
+            <option value="시흥 배곧신도시">시흥 배곧신도시</option>
+            <option value="화성 동탄2신도시">화성 동탄2신도시</option>
+            <option value="오산 세교신도시">오산 세교신도시</option>
+            <option value="평택 브레인시티">평택 브레인시티</option>
+            <option value="안성 공도읍">안성 공도읍</option>
+            <option value="천안아산역 KTX">천안아산역 KTX</option>
+            <option value="대전역">대전역</option>
+            <option value="세종시청">세종시청</option>
+            <option value="오송역 KTX">오송역 KTX</option>
+            <option value="청주국제공항">청주국제공항</option>
+            <option value="전주 한옥마을">전주 한옥마을</option>
+            <option value="광주 상무지구">광주 상무지구</option>
+            <option value="광주송정역 KTX">광주송정역 KTX</option>
+            <option value="목포역">목포역</option>
+            <option value="여수엑스포역">여수엑스포역</option>
+            <option value="순천역">순천역</option>
+            <option value="부산역 KTX">부산역 KTX</option>
+            <option value="부산 해운대 해수욕장">부산 해운대 해수욕장</option>
+            <option value="부산 서면 롯데백화점">부산 서면 롯데백화점</option>
+            <option value="김해국제공항">김해국제공항</option>
+            <option value="창원시청">창원시청</option>
+            <option value="진주 혁신도시">진주 혁신도시</option>
+            <option value="대구역">대구역</option>
+            <option value="동대구역 KTX">동대구역 KTX</option>
+            <option value="대구 동성로">대구 동성로</option>
+            <option value="경주 불국사">경주 불국사</option>
+            <option value="포항 영일만신항">포항 영일만신항</option>
+            <option value="울산 현대자동차 공장">울산 현대자동차 공장</option>
+            <option value="울산역 KTX">울산역 KTX</option>
+            <option value="강릉역 KTX">강릉역 KTX</option>
+            <option value="강릉 경포대">강릉 경포대</option>
+            <option value="원주혁신도시">원주혁신도시</option>
+            <option value="춘천 명동거리">춘천 명동거리</option>
+            <option value="속초 설악산 소공원">속초 설악산 소공원</option>
+            <option value="양양국제공항">양양국제공항</option>
+            <option value="제주국제공항">제주국제공항</option>
+            <option value="제주 중문관광단지">제주 중문관광단지</option>
+            <option value="서울아산병원">서울아산병원</option>
+            <option value="삼성서울병원">삼성서울병원</option>
+            <option value="서울대학교병원">서울대학교병원</option>
+            <option value="세브란스병원">세브란스병원</option>
+            <option value="고려대학교 안암병원">고려대학교 안암병원</option>
+            <option value="국립중앙의료원">국립중앙의료원</option>
+            <option value="국립현대미술관 서울관">국립현대미술관 서울관</option>
+            <option value="국립중앙박물관">국립중앙박물관</option>
+            <option value="예술의전당">예술의전당</option>
+            <option value="세종문화회관">세종문화회관</option>
+            <option value="DDP 동대문디자인플라자">DDP 동대문디자인플라자</option>
+            <option value="롯데월드 어드벤처">롯데월드 어드벤처</option>
+            <option value="에버랜드">에버랜드</option>
+            <option value="서울랜드">서울랜드</option>
+            <option value="63빌딩">63빌딩</option>
+            <option value="N서울타워">N서울타워</option>
+            <option value="북촌 한옥마을">북촌 한옥마을</option>
+            <option value="인사동 쌈지길">인사동 쌈지길</option>
+            <option value="이태원 앤틱가구거리">이태원 앤틱가구거리</option>
+            <option value="성수동 카페거리">성수동 카페거리</option>
+            <option value="망원동 망리단길">망원동 망리단길</option>
+            <option value="연남동 연트럴파크">연남동 연트럴파크</option>
+            <option value="을지로 힙지로">을지로 힙지로</option>
+            <option value="익선동 한옥거리">익선동 한옥거리</option>
+            <option value="한강 뚝섬유원지">한강 뚝섬유원지</option>
+            <option value="한강 반포 세빛섬">한강 반포 세빛섬</option>
+            <option value="서울숲">서울숲</option>
+            <option value="북한산 국립공원">북한산 국립공원</option>
+            <option value="수락산 등산로 입구">수락산 등산로 입구</option>
+            <option value="관악산 등산로 입구">관악산 등산로 입구</option>
+          </select>
+          <span class="select-arrow">▾</span>
+        </div>
+      </div>
+      <button class="btn primary" id="start-btn" onclick="startNavigation()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L12 7M12 7L8 3M12 7L8 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        경로 탐색 시작
+      </button>
+    </div>
+
+    <!-- 시스템 상태 -->
+    <div class="section">
+      <div class="section-label">시스템 상태</div>
+
+      <!-- Step tracker -->
+      <div class="step-track">
+        <div class="step-node active" id="s1">1</div>
+        <div class="step-line" id="sl1"></div>
+        <div class="step-node" id="s2">2</div>
+        <div class="step-line" id="sl2"></div>
+        <div class="step-node" id="s3">3</div>
+        <div class="step-line" id="sl3"></div>
+        <div class="step-node" id="s4">T</div>
+        <div class="step-line" id="sl4"></div>
+        <div class="step-node" id="s5">5</div>
+      </div>
+      <div class="step-desc" id="step-desc">경로 탐색 준비 완료</div>
+
+      <div class="stat-grid">
+        <div class="stat-row">
+          <span class="stat-key">GPS 신호</span>
+          <span class="stat-val" id="gps-status-val" style="display:flex;align-items:center;gap:8px;">
+            <span id="gps-status-text" class="green">정상</span>
+            <span class="signal-wrap" id="signal-bars">
+              <span class="signal-bar" style="height:4px;background:var(--green)"></span>
+              <span class="signal-bar" style="height:7px;background:var(--green)"></span>
+              <span class="signal-bar" style="height:10px;background:var(--green)"></span>
+              <span class="signal-bar" style="height:13px;background:var(--green)"></span>
+            </span>
+          </span>
+        </div>
+        <div class="stat-row" id="gps-source-row">
+          <span class="stat-key">위치 소스</span>
+          <span class="stat-val blue" id="loc-source">GPS 위성</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">현재 속도</span>
+          <span class="stat-val blue" id="speed-val">0 km/h</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">예상 도착</span>
+          <span class="stat-val" id="eta-val">--:--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">남은 거리</span>
+          <span class="stat-val" id="dist-val">-- km</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">V2V 연결 차량</span>
+          <span class="stat-val green" id="v2v-count">0대</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- V2V 수신 데이터 -->
+    <div class="section" style="flex:1;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-label" style="margin-bottom:0;">V2V 수신 데이터</div>
+        <span class="chip chip-dim" id="v2v-mode-chip"><span class="chip-dot"></span>대기</span>
+      </div>
+      <div id="v2v-feed">
+        <div class="v2v-empty">네트워크 대기 중...</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN MAP ══ -->
+  <main class="main-view">
+    <canvas id="map-canvas"></canvas>
+    <div class="tunnel-overlay" id="tunnel-overlay">
+      <div class="tunnel-banner">터널 구간 진입</div>
+      <div class="tunnel-sub">GPS 차단 · V2V 릴레이 모드 활성화</div>
+    </div>
+  </main>
+
+  <!-- ══ RIGHT SIDEBAR ══ -->
+  <aside class="sidebar-right">
+
+    <!-- 속도계 -->
+    <div class="section" style="text-align:center; padding: 20px 16px;">
+      <div class="big-speed" id="big-speed">0</div>
+      <div class="speed-unit">km/h</div>
+      <div style="margin-top:12px;">
+        <span class="chip chip-dim" id="drive-mode-chip">대기 중</span>
+      </div>
+    </div>
+
+    <!-- 경로 비교 -->
+    <div class="section">
+      <div class="section-label">경로 비교</div>
+      <div class="route-cards">
+        <div class="route-card active-route" id="card-current">
+          <div class="route-label">현재 경로</div>
+          <div class="route-time blue" id="cur-time">--</div>
+          <div class="route-unit">분</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;" id="cur-dist">-- km</div>
+          <div class="route-via" id="cur-via">--</div>
+        </div>
+        <div class="route-card alt-route" id="card-alt">
+          <div class="route-label">대체 경로</div>
+          <div class="route-time green" id="alt-time">--</div>
+          <div class="route-unit">분</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;" id="alt-dist">-- km</div>
+          <div class="route-via" id="alt-via">--</div>
+        </div>
+      </div>
+      <div class="decision-box" id="decision-box">
+        경로 탐색을 시작하면 의사결정 결과가 표시됩니다.
+      </div>
+    </div>
+
+    <!-- 이벤트 로그 -->
+    <div class="section" style="flex:1;">
+      <div class="section-label">이벤트 로그</div>
+      <div id="event-log">
+        <div class="v2v-empty">이벤트 없음</div>
+      </div>
+    </div>
+
+  </aside>
 </div>
 
 <script>
-// ───────── 지도 생성 ─────────
-const map = new kakao.maps.Map(document.getElementById('map'), {
-  center: new kakao.maps.LatLng(37.5665,126.9780),
-  level:5
-});
+// ── CLOCK ─────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    [now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>n.toString().padStart(2,'0')).join(':');
+}
+setInterval(updateClock, 1000); updateClock();
 
-let polyline = null;
-let marker = null;
-let routePath = [];
-let progress = 0;
+// ── LOCATION DATABASE (normalized canvas coords) ──────
+// x: 0=west(Incheon), 1=east(Namyangju)  y: 0=north, 1=south
+const LOC = {
+  // ── ORIGINS ──
+  '서울시청':{x:0.47,y:0.38},'광화문광장':{x:0.46,y:0.34},'경복궁':{x:0.44,y:0.30},
+  '종로3가':{x:0.51,y:0.35},'동대문역사문화공원':{x:0.56,y:0.38},'명동 롯데백화점':{x:0.49,y:0.41},
+  '남산서울타워':{x:0.51,y:0.45},'용산역':{x:0.46,y:0.49},'이태원 해밀턴호텔':{x:0.49,y:0.47},
+  '홍대입구역':{x:0.36,y:0.38},'신촌역':{x:0.38,y:0.35},'연세대학교 정문':{x:0.37,y:0.33},
+  '이화여자대학교':{x:0.39,y:0.34},'합정역':{x:0.35,y:0.40},'망원한강공원':{x:0.33,y:0.44},
+  '여의도역':{x:0.40,y:0.50},'여의도 한강공원':{x:0.39,y:0.52},'KBS 방송국':{x:0.41,y:0.51},
+  '영등포역':{x:0.37,y:0.55},'타임스퀘어 영등포':{x:0.37,y:0.56},'구로디지털단지역':{x:0.31,y:0.61},
+  '신도림역':{x:0.33,y:0.57},'가산디지털단지역':{x:0.28,y:0.64},'금천구청역':{x:0.26,y:0.66},
+  '관악구청':{x:0.38,y:0.66},'서울대학교 정문':{x:0.36,y:0.68},'낙성대역':{x:0.40,y:0.67},
+  '사당역':{x:0.44,y:0.68},'방배역':{x:0.46,y:0.65},'서초구청':{x:0.48,y:0.63},
+  '강남역':{x:0.52,y:0.63},'신논현역':{x:0.52,y:0.61},'논현역':{x:0.54,y:0.59},
+  '압구정 현대백화점':{x:0.54,y:0.55},'청담동 명품거리':{x:0.57,y:0.54},'삼성역 코엑스':{x:0.57,y:0.59},
+  '선릉역':{x:0.59,y:0.60},'역삼역':{x:0.55,y:0.62},'도곡역':{x:0.57,y:0.65},
+  '개포동 래미안':{x:0.54,y:0.68},'수서역':{x:0.59,y:0.70},'복정역':{x:0.61,y:0.72},
+  '문정역':{x:0.62,y:0.68},'가락시장역':{x:0.63,y:0.65},'잠실역 롯데월드':{x:0.67,y:0.58},
+  '잠실새내역':{x:0.65,y:0.57},'석촌역':{x:0.65,y:0.63},'송파구청':{x:0.67,y:0.66},
+  '올림픽공원':{x:0.70,y:0.63},'강동구청':{x:0.73,y:0.58},'천호역':{x:0.71,y:0.56},
+  '강변역 테크노마트':{x:0.65,y:0.51},'구리시청':{x:0.79,y:0.49},'광진구청':{x:0.64,y:0.49},
+  '건국대학교':{x:0.62,y:0.47},'뚝섬역':{x:0.60,y:0.47},'성수역':{x:0.61,y:0.49},
+  '왕십리역':{x:0.58,y:0.45},'한양대학교':{x:0.60,y:0.44},'마장역':{x:0.59,y:0.41},
+  '동묘앞역':{x:0.55,y:0.36},'신설동역':{x:0.54,y:0.38},'제기동역':{x:0.55,y:0.33},
+  '청량리역':{x:0.59,y:0.31},'회기역':{x:0.61,y:0.29},'경희대학교':{x:0.62,y:0.27},
+  '외대앞역':{x:0.64,y:0.26},'망우역':{x:0.70,y:0.30},'중랑구청':{x:0.67,y:0.33},
+  '노원역':{x:0.65,y:0.17},'도봉산역':{x:0.60,y:0.11},'방학역':{x:0.57,y:0.14},
+  '쌍문역':{x:0.55,y:0.18},'창동역':{x:0.58,y:0.20},'도봉구청':{x:0.56,y:0.15},
+  '강북구청':{x:0.52,y:0.22},'수유역':{x:0.52,y:0.20},'미아사거리역':{x:0.53,y:0.25},
+  '길음역':{x:0.51,y:0.28},'성신여대입구역':{x:0.49,y:0.30},'한성대입구역':{x:0.50,y:0.31},
+  '혜화역':{x:0.51,y:0.32},'동대문역':{x:0.55,y:0.37},'을지로3가역':{x:0.51,y:0.37},
+  '을지로입구역':{x:0.49,y:0.38},'시청역':{x:0.47,y:0.38},'충정로역':{x:0.44,y:0.37},
+  '아현역':{x:0.42,y:0.39},'마포역':{x:0.40,y:0.42},'공덕역':{x:0.40,y:0.43},
+  '대흥역':{x:0.39,y:0.41},'상수역':{x:0.37,y:0.41},'광흥창역':{x:0.38,y:0.42},
+  '서강대학교':{x:0.38,y:0.38},'가좌역':{x:0.34,y:0.34},'수색역':{x:0.32,y:0.32},
+  '디지털미디어시티역':{x:0.31,y:0.33},'은평구청':{x:0.34,y:0.25},'불광역':{x:0.36,y:0.22},
+  // ── DESTINATIONS ──
+  '강남구 테헤란로 521':{x:0.55,y:0.61},'강남역 2번출구':{x:0.52,y:0.63},'코엑스몰':{x:0.57,y:0.58},
+  '잠실 롯데월드타워':{x:0.68,y:0.58},'서울 올림픽스타디움':{x:0.70,y:0.62},
+  '인천국제공항 1터미널':{x:0.04,y:0.50},'인천국제공항 2터미널':{x:0.02,y:0.52},
+  '김포국제공항':{x:0.22,y:0.44},'서울역 KTX':{x:0.46,y:0.41},'수서역 SRT':{x:0.59,y:0.70},
+  '용산역 ITX':{x:0.46,y:0.49},'청량리역 GTX-B':{x:0.59,y:0.31},'동탄역':{x:0.50,y:0.87},
+  '판교역 알파돔':{x:0.56,y:0.74},'분당 서현역':{x:0.60,y:0.76},'수원역':{x:0.44,y:0.90},
+  '수원 삼성전자 캠퍼스':{x:0.46,y:0.89},'광교 앨리웨이':{x:0.48,y:0.85},'성남시청':{x:0.57,y:0.73},
+  '위례 중앙광장':{x:0.61,y:0.73},'하남 스타필드':{x:0.77,y:0.61},'미사강변도시':{x:0.79,y:0.57},
+  '구리 갈매지구':{x:0.81,y:0.47},'남양주 다산신도시':{x:0.85,y:0.43},
+  '의정부역':{x:0.56,y:0.08},'양주 옥정신도시':{x:0.52,y:0.03},
+  '파주 운정신도시':{x:0.20,y:0.20},'일산 킨텍스':{x:0.18,y:0.27},'고양 스타필드':{x:0.24,y:0.29},
+  '부천 중동신도시':{x:0.27,y:0.50},'인천 송도국제도시':{x:0.07,y:0.64},'인천 청라국제도시':{x:0.10,y:0.51},
+  '안산 중앙역':{x:0.19,y:0.74},'시흥 배곧신도시':{x:0.17,y:0.70},
+  '화성 동탄2신도시':{x:0.47,y:0.88},'오산 세교신도시':{x:0.44,y:0.92},
+  '평택 브레인시티':{x:0.42,y:0.95},'안성 공도읍':{x:0.45,y:0.97},
+  '천안아산역 KTX':{x:0.40,y:0.98},'대전역':{x:0.35,y:0.99},'세종시청':{x:0.38,y:0.98},
+  '오송역 KTX':{x:0.37,y:0.98},'청주국제공항':{x:0.43,y:0.97},'전주 한옥마을':{x:0.22,y:0.99},
+  '광주 상무지구':{x:0.19,y:0.99},'광주송정역 KTX':{x:0.17,y:0.99},'목포역':{x:0.11,y:0.99},
+  '여수엑스포역':{x:0.27,y:0.99},'순천역':{x:0.28,y:0.99},
+  '부산역 KTX':{x:0.83,y:0.97},'부산 해운대 해수욕장':{x:0.88,y:0.96},
+  '부산 서면 롯데백화점':{x:0.84,y:0.96},'김해국제공항':{x:0.80,y:0.96},
+  '창원시청':{x:0.77,y:0.97},'진주 혁신도시':{x:0.67,y:0.99},
+  '대구역':{x:0.68,y:0.88},'동대구역 KTX':{x:0.70,y:0.87},'대구 동성로':{x:0.69,y:0.87},
+  '경주 불국사':{x:0.78,y:0.84},'포항 영일만신항':{x:0.84,y:0.78},
+  '울산 현대자동차 공장':{x:0.82,y:0.90},'울산역 KTX':{x:0.81,y:0.88},
+  '강릉역 KTX':{x:0.96,y:0.42},'강릉 경포대':{x:0.97,y:0.41},'원주혁신도시':{x:0.83,y:0.52},
+  '춘천 명동거리':{x:0.73,y:0.27},'속초 설악산 소공원':{x:0.93,y:0.22},'양양국제공항':{x:0.94,y:0.28},
+  '제주국제공항':{x:0.30,y:0.99},'제주 중문관광단지':{x:0.28,y:0.99},
+  '서울아산병원':{x:0.64,y:0.53},'삼성서울병원':{x:0.55,y:0.68},'서울대학교병원':{x:0.45,y:0.32},
+  '세브란스병원':{x:0.38,y:0.34},'고려대학교 안암병원':{x:0.55,y:0.29},'국립중앙의료원':{x:0.54,y:0.38},
+  '국립현대미술관 서울관':{x:0.44,y:0.33},'국립중앙박물관':{x:0.46,y:0.47},'예술의전당':{x:0.48,y:0.66},
+  '세종문화회관':{x:0.46,y:0.35},'DDP 동대문디자인플라자':{x:0.56,y:0.38},
+  '롯데월드 어드벤처':{x:0.67,y:0.59},'에버랜드':{x:0.54,y:0.84},'서울랜드':{x:0.44,y:0.73},
+  '63빌딩':{x:0.40,y:0.51},'N서울타워':{x:0.51,y:0.45},
+  '북촌 한옥마을':{x:0.49,y:0.31},'인사동 쌈지길':{x:0.49,y:0.35},
+  '이태원 앤틱가구거리':{x:0.49,y:0.48},'성수동 카페거리':{x:0.62,y:0.49},
+  '망원동 망리단길':{x:0.33,y:0.41},'연남동 연트럴파크':{x:0.37,y:0.36},
+  '을지로 힙지로':{x:0.51,y:0.38},'익선동 한옥거리':{x:0.51,y:0.34},
+  '한강 뚝섬유원지':{x:0.61,y:0.48},'한강 반포 세빛섬':{x:0.49,y:0.53},'서울숲':{x:0.62,y:0.48},
+  '북한산 국립공원':{x:0.44,y:0.15},'수락산 등산로 입구':{x:0.65,y:0.12},'관악산 등산로 입구':{x:0.38,y:0.74},
+};
 
-// ───────── TMAP 경로 요청 ─────────
-async function getRoute(start, end) {
-  const res = await fetch("https://apis.openapi.sk.com/tmap/routes?version=1&format=json", {
-    method:"POST",
-    headers:{
-      "appKey":"TMAP_APP_KEY",
-      "Content-Type":"application/json"
-    },
-    body:JSON.stringify({
-      startX:start.lng,
-      startY:start.lat,
-      endX:end.lng,
-      endY:end.lat,
-      reqCoordType:"WGS84GEO",
-      resCoordType:"WGS84GEO"
-    })
-  });
+// ── TUNNEL ZONE (Namsan area) ──────────────────────────
+const TZ = {x1:0.43, y1:0.38, x2:0.59, y2:0.51};
 
-  return await res.json();
+function routePassesTunnel(ox,oy,dx,dy) {
+  for(let t=0;t<=1;t+=0.05) {
+    const x=ox+(dx-ox)*t, y=oy+(dy-oy)*t;
+    if(x>=TZ.x1&&x<=TZ.x2&&y>=TZ.y1&&y<=TZ.y2) return true;
+  }
+  return false;
 }
 
-// ───────── 경로 그리기 ─────────
-function drawRoute(data){
-  const coords = data.features
-    .filter(f=>f.geometry.type==="LineString")
-    .flatMap(f=>f.geometry.coordinates);
+// ── ROUTE BUILDER ─────────────────────────────────────
+function buildRoute(oName, dName) {
+  const o = LOC[oName] || {x:0.47,y:0.38};
+  const d = LOC[dName] || {x:0.55,y:0.61};
+  const dx=d.x-o.x, dy=d.y-o.y;
+  const dist=Math.hypot(dx,dy);
+  const distKm=Math.round(dist*130*10)/10;
+  const curTime=Math.max(5,Math.round(distKm*2.2+4));
+  const altTime=Math.max(7,Math.round(distKm*2.8+7));
 
-  routePath = coords.map(c =>
-    new kakao.maps.LatLng(c[1],c[0])
-  );
+  const hasTunnel = routePassesTunnel(o.x,o.y,d.x,d.y);
 
-  if(polyline) polyline.setMap(null);
+  // ── Build MAIN route ──
+  const main=[];
+  main.push({x:o.x,y:o.y,type:'origin'});
 
-  polyline = new kakao.maps.Polyline({
-    path:routePath,
-    strokeWeight:5,
-    strokeColor:"#2e7cf6",
-    strokeOpacity:0.9
+  if (hasTunnel) {
+    const tunMidY=(TZ.y1+TZ.y2)/2;
+    if (dist>0.15) main.push({x:o.x+dx*0.3,y:o.y+dy*0.3});
+    main.push({x:TZ.x1+0.015,y:tunMidY,type:'tunnel_in'});
+    main.push({x:TZ.x2-0.015,y:tunMidY,type:'tunnel_out'});
+    if (dist>0.15) main.push({x:d.x-dx*0.3,y:d.y-dy*0.3});
+  } else {
+    const perpX = dist>0.01 ? (-dy/dist)*Math.min(0.05,dist*0.2) : 0;
+    const perpY = dist>0.01 ? ( dx/dist)*Math.min(0.05,dist*0.2) : 0;
+    if (dist>0.10) main.push({x:o.x+dx*0.5+perpX, y:o.y+dy*0.5+perpY});
+    if (dist>0.35) main.push({x:o.x+dx*0.78-perpX*0.4, y:o.y+dy*0.78-perpY*0.4});
+  }
+  main.push({x:d.x,y:d.y,type:'dest'});
+
+  // Find tunnel fractions
+  let tunnelInIdx=-1, tunnelOutIdx=-1;
+  main.forEach((p,i)=>{
+    if(p.type==='tunnel_in')  tunnelInIdx=i;
+    if(p.type==='tunnel_out') tunnelOutIdx=i;
   });
+  const totalSegs=main.length-1;
+  const tunStartFrac = tunnelInIdx>=0 ? tunnelInIdx/totalSegs : -1;
+  const tunEndFrac   = tunnelOutIdx>=0 ? (tunnelOutIdx)/totalSegs : -1;
 
-  polyline.setMap(map);
+  // ── Build ALT route ──
+  const alt=[];
+  alt.push({x:o.x,y:o.y});
+  if (hasTunnel) {
+    // Go south of Namsan via Euljiro/Sindang
+    const mx=(o.x+d.x)/2, my=(o.y+d.y)/2;
+    alt.push({x:o.x+dx*0.3+0.04, y:o.y+dy*0.3+0.07});
+    alt.push({x:mx+0.02,          y:Math.max(TZ.y2,my)+0.08});
+    alt.push({x:d.x-dx*0.25+0.01,y:d.y-dy*0.25+0.02});
+  } else {
+    const offX = dist>0.01 ? ( dy/dist)*0.06 : 0.04;
+    const offY = dist>0.01 ? (-dx/dist)*0.06 : 0.04;
+    alt.push({x:o.x+dx*0.45+offX, y:o.y+dy*0.45+offY});
+    if(dist>0.25) alt.push({x:o.x+dx*0.75+offX*0.5, y:o.y+dy*0.75+offY*0.5});
+  }
+  alt.push({x:d.x,y:d.y});
 
-  map.setCenter(routePath[0]);
+  // Accident point = ~65% along main route
+  const aIdx=Math.max(0,Math.min(Math.floor(main.length*0.62),main.length-2));
+  const aNext=Math.min(aIdx+1,main.length-1);
+  const accPoint={x:(main[aIdx].x+main[aNext].x)/2, y:(main[aIdx].y+main[aNext].y)/2};
 
-  // 차량 생성
-  if(marker) marker.setMap(null);
-  marker = new kakao.maps.Marker({
-    position:routePath[0]
-  });
-  marker.setMap(map);
+  // Via label for UI
+  const viaMain = hasTunnel ? '남산터널 경유' : (dist>0.3 ? '직통' : '');
+  const viaAlt  = hasTunnel ? '을지로 · 신당 우회' : '우회 경로';
+
+  return {main,alt,tunnelInIdx,tunnelOutIdx,tunStartFrac,tunEndFrac,
+          hasTunnel,curTime,altTime,distKm,accPoint,viaMain,viaAlt};
 }
 
-// ───────── 차량 이동 ─────────
-function animate(){
-  if(progress >= routePath.length) return;
+// ── CANVAS ────────────────────────────────────────────
+const canvas = document.getElementById('map-canvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width=r.width; canvas.height=r.height; drawMap();
+}
+window.addEventListener('resize', resizeCanvas);
 
-  marker.setPosition(routePath[progress]);
+const C = {
+  bg:'#0b0d12', grid:'rgba(255,255,255,0.035)',
+  routeMain:'#2e7cf6', routeAlt:'#22c97a', routeTunnel:'#8b6cf7',
+  label:'rgba(232,234,240,0.85)', dim:'rgba(122,130,153,0.85)',
+  accident:'#f04f4f', carMain:'#2e7cf6', carTunnel:'#8b6cf7',
+  tunnelBg:'rgba(139,108,247,0.07)', tunnelBord:'rgba(139,108,247,0.4)',
+};
 
-  // 속도
-  const speed = Math.floor(40 + Math.random()*30);
-  document.getElementById('speed').textContent = speed + " km/h";
+const appState = {
+  active:false, progress:0, route:null,
+  useAlt:false, inTunnel:false, showAccident:false,
+  curTime:0, altTime:0, speed:0, v2vCars:0, tunnelRelayPackets:0,
+};
 
-  // ETA
-  const remain = routePath.length - progress;
-  document.getElementById('eta').textContent = Math.floor(remain/10) + "분";
+// ── DRAW ──────────────────────────────────────────────
+function cX(n){return n*canvas.width;}
+function cY(n){return n*canvas.height;}
+function cp(p){return {x:cX(p.x),y:cY(p.y)};}
 
-  progress++;
-
-  setTimeout(animate, 100);
+function drawPoly(pts,color,dash,width,alpha){
+  if(!pts||pts.length<2)return;
+  ctx.save();
+  if(alpha!==undefined)ctx.globalAlpha=alpha;
+  ctx.strokeStyle=color; ctx.lineWidth=width;
+  ctx.setLineDash(dash); ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath();
+  pts.forEach((p,i)=>{const {x,y}=cp(p); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke(); ctx.setLineDash([]); ctx.restore();
 }
 
-// ───────── 시작 ─────────
-async function startNav(){
-  progress = 0;
+function drawMap(){
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
 
-  const start = {
-    lat:parseFloat(document.getElementById('start-lat').value),
-    lng:parseFloat(document.getElementById('start-lng').value)
-  };
+  // Grid
+  ctx.strokeStyle=C.grid; ctx.lineWidth=1;
+  for(let i=0;i<20;i++){
+    ctx.beginPath();ctx.moveTo(0,(H/19)*i);ctx.lineTo(W,(H/19)*i);ctx.stroke();
+    ctx.beginPath();ctx.moveTo((W/19)*i,0);ctx.lineTo((W/19)*i,H);ctx.stroke();
+  }
 
-  const end = {
-    lat:parseFloat(document.getElementById('end-lat').value),
-    lng:parseFloat(document.getElementById('end-lng').value)
-  };
+  const r=appState.route;
+  if(!r){
+    ctx.fillStyle='rgba(122,130,153,0.18)';
+    ctx.font='400 14px "Barlow",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('출발지와 목적지를 선택하고 탐색을 시작하세요',W/2,H/2);
+    return;
+  }
 
-  const data = await getRoute(start, end);
+  const {main,alt,tunnelInIdx,tunnelOutIdx,hasTunnel}=r;
 
-  drawRoute(data);
+  // Tunnel zone rect
+  if(hasTunnel){
+    const tx1=cX(TZ.x1),ty1=cY(TZ.y1),tx2=cX(TZ.x2),ty2=cY(TZ.y2);
+    ctx.fillStyle=C.tunnelBg; ctx.strokeStyle=C.tunnelBord; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.rect(tx1,ty1,tx2-tx1,ty2-ty1);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(139,108,247,0.62)';
+    ctx.font='500 10px "Barlow Condensed",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText('남산 터널 · GPS 차단 구간',(tx1+tx2)/2,ty2+5);
+  }
+
+  // Alt route
+  const altAlpha = appState.useAlt ? 1.0 : 0.45;
+  drawPoly(alt, C.routeAlt, [7,5], appState.useAlt?3.5:2.5, altAlpha);
+
+  // Main route
+  if(!appState.useAlt){
+    if(hasTunnel&&tunnelInIdx>=0&&tunnelOutIdx>=0){
+      drawPoly(main.slice(0,tunnelInIdx+1),  C.routeMain,   [],    3.5);
+      drawPoly(main.slice(tunnelInIdx,tunnelOutIdx+1), C.routeTunnel,[5,4],3.5);
+      drawPoly(main.slice(tunnelOutIdx),     C.routeMain,   [],    3.5);
+    } else {
+      drawPoly(main, C.routeMain, [], 3.5);
+    }
+  } else {
+    drawPoly(main, 'rgba(46,124,246,0.22)', [], 2.5);
+    drawPoly(alt,  C.routeMain, [], 3.5);
+  }
+
+  // Accident marker
+  if(appState.showAccident&&r.accPoint){
+    const ap=cp(r.accPoint);
+    ctx.beginPath();ctx.arc(ap.x,ap.y,15,0,Math.PI*2);
+    ctx.fillStyle='rgba(240,79,79,0.15)';ctx.fill();
+    ctx.beginPath();ctx.arc(ap.x,ap.y,9,0,Math.PI*2);
+    ctx.fillStyle=C.accident;ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('!',ap.x,ap.y);
+  }
+
+  // Origin / Destination markers
+  const oName=document.getElementById('origin-input').value;
+  const dName=document.getElementById('dest-input').value;
+  function drawMarker(pt, fillColor, label, above){
+    const p=cp(pt);
+    // Pin shadow
+    ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);
+    ctx.fillStyle=fillColor;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle=C.label;ctx.font='500 11px "Barlow",sans-serif';
+    ctx.textAlign='center';
+    const txt=label.length>14?label.substring(0,13)+'…':label;
+    if(above){ctx.textBaseline='bottom';ctx.fillText(txt,p.x,p.y-13);}
+    else      {ctx.textBaseline='top';  ctx.fillText(txt,p.x,p.y+13);}
+  }
+  drawMarker(main[0], C.routeMain, oName, true);
+  drawMarker(main[main.length-1], C.accident, dName, false);
+
+  // Tunnel markers
+  if(hasTunnel&&tunnelInIdx>=0){
+    [main[tunnelInIdx],main[tunnelOutIdx]].forEach((pt,i)=>{
+      if(!pt)return;
+      const p=cp(pt);
+      ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);
+      ctx.fillStyle=C.routeTunnel;ctx.fill();
+      ctx.strokeStyle=C.bg;ctx.lineWidth=1.5;ctx.stroke();
+      ctx.fillStyle='rgba(139,108,247,0.7)';ctx.font='10px "Barlow",sans-serif';
+      ctx.textAlign=i===0?'right':'left';ctx.textBaseline='middle';
+      ctx.fillText(i===0?'진입':'출구',p.x+(i===0?-8:8),p.y);
+    });
+  }
+
+  // Car
+  if(appState.active){
+    const activeRoute=appState.useAlt?alt:main;
+    const totalSegs=activeRoute.length-1;
+    const gt=appState.progress*totalSegs;
+    const si=Math.min(Math.floor(gt),totalSegs-1);
+    const st=gt-si;
+    const from=activeRoute[si],to=activeRoute[si+1];
+    const cx=from.x+(to.x-from.x)*st, cy=from.y+(to.y-from.y)*st;
+    const cpx=cX(cx),cpy=cY(cy),inTun=appState.inTunnel;
+    if(inTun){
+      ctx.beginPath();ctx.arc(cpx,cpy,18,0,Math.PI*2);
+      ctx.strokeStyle='rgba(139,108,247,0.28)';ctx.lineWidth=1.5;
+      ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+    }
+    ctx.beginPath();ctx.arc(cpx,cpy,12,0,Math.PI*2);
+    ctx.fillStyle=inTun?C.carTunnel:C.carMain;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='bold 9px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('AV',cpx,cpy);
+  }
+
+  // Legend
+  ctx.font='400 11px "Barlow",sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  const lx=12,ly=12,lh=18;
+  const items=[
+    {color:C.routeMain, dash:[],   label:'현재 경로'},
+    {color:C.routeAlt,  dash:[6,4],label:'대체 경로'},
+    ...(hasTunnel?[{color:C.routeTunnel,dash:[5,4],label:'V2V 릴레이'}]:[]),
+  ];
+  items.forEach((item,i)=>{
+    const y=ly+i*lh;
+    ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.setLineDash(item.dash);
+    ctx.beginPath();ctx.moveTo(lx,y);ctx.lineTo(lx+20,y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=C.dim; ctx.fillText(item.label,lx+26,y);
+  });
+  if(appState.showAccident){
+    const y=ly+items.length*lh;
+    ctx.beginPath();ctx.arc(lx+5,y,5,0,Math.PI*2);
+    ctx.fillStyle=C.accident;ctx.fill();
+    ctx.fillStyle=C.dim; ctx.fillText('사고 발생',lx+14,y);
+  }
+}
+
+// ── HELPERS ────────────────────────────────────────────
+function setStep(n) {
+  const labels = ['GPS 위치 확인','경로 탐색 완료','V2V 수신 중','터널 구간 주행','주행 완료'];
+  for (let i=1; i<=5; i++) {
+    const el  = document.getElementById('s'+i);
+    const line = document.getElementById('sl'+i);
+    if (i < n) {
+      el.className='step-node done'; el.textContent='✓';
+      if (line) line.className='step-line done';
+    } else if (i===n) {
+      if (n===4) { el.className='step-node tunnel'; el.textContent='T'; }
+      else       { el.className='step-node active'; el.textContent=i; }
+      if (line) line.className='step-line';
+    } else {
+      el.className='step-node'; el.textContent=(i===4?'T':i);
+      if (line) line.className='step-line';
+    }
+  }
+  document.getElementById('step-desc').textContent = labels[n-1] || '';
+}
+
+function setGPSMode(mode) {
+  const text  = document.getElementById('gps-status-text');
+  const bars  = document.getElementById('signal-bars');
+  const src   = document.getElementById('loc-source');
+  const ping  = document.getElementById('v2v-mode-chip');
+  const chip  = document.getElementById('header-status-chip');
+
+  if (mode==='normal') {
+    text.textContent='정상'; text.className='green';
+    bars.innerHTML=`
+      <span class="signal-bar" style="height:4px;background:var(--green)"></span>
+      <span class="signal-bar" style="height:7px;background:var(--green)"></span>
+      <span class="signal-bar" style="height:10px;background:var(--green)"></span>
+      <span class="signal-bar" style="height:13px;background:var(--green)"></span>`;
+    src.textContent='GPS 위성'; src.className='stat-val blue';
+    ping.className='chip chip-green'; ping.innerHTML='<span class="chip-dot anim"></span>GPS+V2V';
+    chip.className='chip chip-blue'; chip.innerHTML='<span class="chip-dot anim"></span>주행 중';
+  } else if (mode==='tunnel') {
+    text.textContent='차단 (터널)'; text.className='amber';
+    bars.innerHTML=`
+      <span class="signal-bar" style="height:4px;background:var(--amber)"></span>
+      <span class="signal-bar" style="height:3px;background:rgba(245,166,35,0.3)"></span>
+      <span class="signal-bar" style="height:2px;background:rgba(245,166,35,0.1)"></span>
+      <span class="signal-bar" style="height:2px;background:rgba(245,166,35,0.05)"></span>`;
+    src.textContent='V2V 릴레이'; src.className='stat-val purple';
+    ping.className='chip chip-purple'; ping.innerHTML='<span class="chip-dot anim"></span>V2V 릴레이 전용';
+    chip.className='chip chip-purple'; chip.innerHTML='<span class="chip-dot anim"></span>터널 구간';
+  } else if (mode==='arrived') {
+    text.textContent='정상'; text.className='green';
+    chip.className='chip chip-green'; chip.innerHTML='<span class="chip-dot"></span>도착';
+    ping.className='chip chip-dim'; ping.innerHTML='<span class="chip-dot"></span>완료';
+  }
+}
+
+let logEntries = [];
+function addLog(text, type) {
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  logEntries.unshift({ t, text, type });
+  if (logEntries.length > 12) logEntries.pop();
+  const el = document.getElementById('event-log');
+  const colors = { info:'var(--text-secondary)', accident:'#ff9494', relay:'#c4b0ff', system:'#ffc96a', success:'#68f0ac' };
+  el.innerHTML = logEntries.map(e => `
+    <div class="event-log-item">
+      <span class="event-time">${e.t}</span>
+      <span class="event-text" style="color:${colors[e.type]||'var(--text-secondary)'};">${e.text}</span>
+    </div>`).join('');
+}
+
+function addV2VMessage(text, source, type, isTunnel) {
+  const feed = document.getElementById('v2v-feed');
+  const chips = { accident:'chip-red', info:'chip-blue', clear:'chip-green', relay:'chip-purple', system:'chip-amber' };
+  const labels = { accident:'사고', info:'정보', clear:'해제', relay:'릴레이', system:'시스템' };
+  const item = document.createElement('div');
+  item.className = 'v2v-item' + (isTunnel ? ' tunnel-msg' : '');
+  item.innerHTML = `
+    <div class="v2v-top">
+      <span class="v2v-text">${text}</span>
+      <span class="chip ${chips[type]||'chip-dim'}" style="white-space:nowrap;">${labels[type]||type}</span>
+    </div>
+    <div class="v2v-meta">${isTunnel ? '<span class="v2v-relay-tag">◆ RELAY</span>' : ''}${source} · 방금 전</div>`;
+  const existing = feed.querySelector('.v2v-empty');
+  if (existing) feed.innerHTML = '';
+  feed.insertBefore(item, feed.firstChild);
+  if (feed.children.length > 6) feed.removeChild(feed.lastChild);
+}
+
+function updateDecision() {
+  const box = document.getElementById('decision-box');
+  if (appState.inTunnel) {
+    box.className = 'decision-box tunnel';
+    box.innerHTML = `<strong>터널 구간 주행 중</strong><br>GPS 신호 차단 — V2V 릴레이 네트워크로 전방 데이터 수신 중.<br>위치 추정: 직전 GPS + 속도·가속도 기반 추측항법(DR).<br>릴레이 수신 패킷: ${appState.tunnelRelayPackets}`;
+    return;
+  }
+  if (!appState.showAccident) {
+    box.className = 'decision-box';
+    box.textContent = '사고 데이터 없음 — 현재 경로 유지 중.';
+    return;
+  }
+  const cur = appState.curTime, alt = appState.altTime;
+  if (alt < cur) {
+    const saved = cur - alt;
+    box.className = 'decision-box reroute';
+    box.innerHTML = `<strong>경로 변경 결정</strong><br>대체 경로가 ${saved}분 빠름 (${cur}분 → ${alt}분).<br>사고 지연 회피 → 경로 수정 실행 완료.`;
+    if (!appState.useAlt) {
+      appState.useAlt = true;
+      addLog('경로 변경 실행 — 우회 경로 적용', 'success');
+    }
+  } else {
+    box.className = 'decision-box keep';
+    box.innerHTML = `<strong>현재 경로 유지 결정</strong><br>대체 경로(${alt}분)가 현재(${cur}분)보다 빠르지 않음.<br>경로 변경 없이 계속 주행.`;
+  }
+}
+
+// ── ANIMATION ─────────────────────────────────────────
+let animFrame = null;
+let v2vInterval = null;
+
+function animate() {
+  if (!appState.active) return;
+  appState.progress = Math.min(appState.progress + 0.00115, 1);
+  const remaining = 1 - appState.progress;
+  const r = appState.route;
+
+  // Tunnel detection
+  const wasTunnel = appState.inTunnel;
+  if (!appState.useAlt && r.hasTunnel && r.tunStartFrac >= 0) {
+    appState.inTunnel = appState.progress >= r.tunStartFrac && appState.progress <= r.tunEndFrac;
+  } else {
+    appState.inTunnel = false;
+  }
+
+  if (!wasTunnel && appState.inTunnel) {
+    setGPSMode('tunnel'); setStep(4);
+    document.getElementById('tunnel-overlay').className = 'tunnel-overlay show';
+    document.getElementById('drive-mode-chip').className = 'chip chip-purple';
+    document.getElementById('drive-mode-chip').textContent = 'V2V 릴레이';
+    addLog('터널 진입 — GPS 신호 차단, V2V 릴레이 전환', 'relay');
+    addV2VMessage('터널 진입 감지 — V2V 릴레이 모드 활성화', '시스템 제어기', 'system', true);
+    setTimeout(() => addV2VMessage('전방 180m 차량: 정상 속도 68km/h', '릴레이 차량 #2 (HYUNDAI IONIQ6)', 'relay', true), 1400);
+    setTimeout(() => addV2VMessage('터널 내 구간 정체 없음, 출구 신호 정상', '릴레이 차량 #1 (KIA EV9)', 'relay', true), 3000);
+    updateDecision();
+  }
+
+  if (wasTunnel && !appState.inTunnel && appState.progress > r.tunEndFrac) {
+    setGPSMode('normal'); setStep(3);
+    document.getElementById('tunnel-overlay').className = 'tunnel-overlay';
+    document.getElementById('drive-mode-chip').className = 'chip chip-blue';
+    document.getElementById('drive-mode-chip').textContent = '자율주행';
+    addLog('터널 탈출 — GPS 신호 복구 완료', 'success');
+    addV2VMessage('GPS 신호 복구 — 위성 위치 확인됨', '시스템 제어기', 'system', false);
+    updateDecision();
+  }
+
+  if (appState.inTunnel) {
+    appState.tunnelRelayPackets++;
+    if (appState.tunnelRelayPackets % 30 === 0) updateDecision();
+  }
+
+  appState.v2vCars = appState.inTunnel
+    ? Math.floor(4 + Math.random()*6)
+    : Math.floor(8 + Math.random()*18);
+  document.getElementById('v2v-count').textContent = appState.v2vCars + '대';
+
+  const s = appState.progress < 0.97 ? Math.round(55 + Math.sin(appState.progress*11)*20) : 0;
+  appState.speed = s;
+  document.getElementById('speed-val').textContent = s + ' km/h';
+  document.getElementById('big-speed').textContent = s;
+
+  const totalMin = appState.useAlt ? appState.altTime : appState.curTime;
+  const remMin = Math.round(remaining * totalMin);
+  const now2 = new Date(); now2.setMinutes(now2.getMinutes() + remMin);
+  document.getElementById('eta-val').textContent = now2.getHours().toString().padStart(2,'0')+':'+now2.getMinutes().toString().padStart(2,'0');
+  document.getElementById('dist-val').textContent = (remaining * (appState.useAlt ? r.distKm*1.2 : r.distKm)).toFixed(1) + ' km';
+
+  drawMap();
+
+  if (appState.progress < 1) {
+    animFrame = requestAnimationFrame(animate);
+  } else {
+    onArrival();
+  }
+}
+
+function onArrival() {
+  appState.active = false;
+  animFrame = null;
+  setGPSMode('arrived'); setStep(5);
+  document.getElementById('big-speed').textContent = '0';
+  document.getElementById('speed-val').textContent = '0 km/h';
+  document.getElementById('drive-mode-chip').className = 'chip chip-green';
+  document.getElementById('drive-mode-chip').textContent = '도착 완료';
+  document.getElementById('decision-box').className = 'decision-box';
+  document.getElementById('decision-box').innerHTML = '<strong>목적지 도착 완료</strong><br>안전하게 도착했습니다. 경로 주행을 종료합니다.';
+  document.getElementById('start-btn').textContent = '다시 시작';
+  addLog('목적지 도착 완료', 'success');
+}
+
+// ── START ──────────────────────────────────────────────
+function startNavigation() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  if (v2vInterval) { clearInterval(v2vInterval); v2vInterval = null; }
+
+  const oName = document.getElementById('origin-input').value;
+  const dName = document.getElementById('dest-input').value;
+
+  if (oName === dName) {
+    alert('출발지와 목적지가 같습니다. 다른 목적지를 선택해주세요.');
+    return;
+  }
+
+  const route = buildRoute(oName, dName);
+  appState.route = route;
+
+  Object.assign(appState, {
+    active:true, progress:0, useAlt:false, inTunnel:false,
+    showAccident:false, curTime:route.curTime, altTime:route.altTime,
+    speed:0, v2vCars:0, tunnelRelayPackets:0,
+  });
+
+  // Reset UI
+  setStep(2); setGPSMode('normal');
+  document.getElementById('v2v-feed').innerHTML = '<div class="v2v-empty">신호 수신 대기...</div>';
+  document.getElementById('tunnel-overlay').className = 'tunnel-overlay';
+  document.getElementById('decision-box').className = 'decision-box';
+  document.getElementById('decision-box').textContent = '경로 탐색 완료 — 사고 데이터 모니터링 중...';
+  document.getElementById('cur-time').textContent = route.curTime;
+  document.getElementById('cur-time').className = 'route-time blue';
+  document.getElementById('cur-dist').textContent = route.distKm + ' km';
+  document.getElementById('cur-via').textContent = route.viaMain || '직통';
+  document.getElementById('alt-time').textContent = route.altTime;
+  document.getElementById('alt-dist').textContent = (route.distKm*1.2).toFixed(1) + ' km';
+  document.getElementById('alt-via').textContent = route.viaAlt;
+  document.getElementById('drive-mode-chip').className = 'chip chip-blue';
+  document.getElementById('drive-mode-chip').textContent = '자율주행';
+  document.getElementById('start-btn').textContent = '경로 탐색 시작';
+  document.getElementById('event-log').innerHTML = '';
+  logEntries = [];
+
+  addLog(`내비게이션 시작 — ${oName} → ${dName}`, 'system');
+
+  const T = (ms, fn) => setTimeout(fn, ms);
+  const mid = Math.round(route.curTime * 0.4 * 1000);
+  const late = Math.round(route.curTime * 0.55 * 1000);
+
+  T(900, () => {
+    setStep(3);
+    addV2VMessage('V2V 네트워크 연결 완료 — 주변 차량 수신 시작', '시스템', 'system', false);
+    addLog('V2V 네트워크 연결 완료', 'info');
+  });
+  T(Math.max(3000, mid - 5000), () => {
+    addV2VMessage('전방 차량: 정상 주행 중 74km/h', 'GENESIS GV80 · 400m 전방', 'info', false);
+  });
+  T(Math.max(6000, mid), () => {
+    appState.showAccident = true;
+    const penalty = Math.round(route.curTime * 0.38);
+    appState.curTime += penalty;
+    document.getElementById('cur-time').textContent = appState.curTime;
+    document.getElementById('cur-time').className = 'route-time red';
+    const accRoad = route.hasTunnel ? '터널 출구 인근' : '경로 중간 구간';
+    addV2VMessage(`${accRoad} 교통사고 발생 — 2차선 차단 · 정체 시작`, 'HYUNDAI IONIQ5 · 전방', 'accident', false);
+    addLog(`사고 수신 — 현재 경로 +${penalty}분 지연`, 'accident');
+    updateDecision();
+  });
+  T(Math.max(9000, late), () => {
+    addV2VMessage('사고 구간 통행 차단 확인', '서울시 교통관제센터', 'accident', false);
+    const newAlt = Math.max(4, appState.altTime - Math.round(route.curTime*0.06));
+    appState.altTime = newAlt;
+    document.getElementById('alt-time').textContent = newAlt;
+    updateDecision();
+  });
+  T(Math.max(14000, late + 5000), () => {
+    addV2VMessage('우회 경로 신호 최적화 완료 · 우선 통행', 'KIA EV9 · 우회 구간 차량', 'info', false);
+  });
+
   animate();
 }
-</script>
 
+// ── PREVIEW (on dropdown change) ─────────────────────
+function previewRoute() {
+  if (appState.active) return; // don't interrupt active navigation
+  const oName = document.getElementById('origin-input').value;
+  const dName = document.getElementById('dest-input').value;
+  if (!oName || !dName || oName === dName) { drawMap(); return; }
+  appState.route = buildRoute(oName, dName);
+  // Update route card preview
+  document.getElementById('cur-time').textContent = appState.route.curTime;
+  document.getElementById('cur-time').className = 'route-time blue';
+  document.getElementById('cur-dist').textContent = appState.route.distKm + ' km';
+  document.getElementById('cur-via').textContent = appState.route.viaMain || '직통';
+  document.getElementById('alt-time').textContent = appState.route.altTime;
+  document.getElementById('alt-dist').textContent = (appState.route.distKm * 1.2).toFixed(1) + ' km';
+  document.getElementById('alt-via').textContent = appState.route.viaAlt;
+  drawMap();
+}
+
+document.getElementById('origin-input').addEventListener('change', previewRoute);
+document.getElementById('dest-input').addEventListener('change', previewRoute);
+
+// ── INIT ───────────────────────────────────────────────
+resizeCanvas();
+// Small delay to ensure canvas is fully sized before first draw
+setTimeout(previewRoute, 50);
+</script>
 </body>
 </html>
